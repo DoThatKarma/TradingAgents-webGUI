@@ -22,3 +22,5 @@ target-version = "py311"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 markers = ["live: real-LLM smoke tests, skipped without credentials"]
+addopts = "--strict-markers"
+pythonpath = ["."]
