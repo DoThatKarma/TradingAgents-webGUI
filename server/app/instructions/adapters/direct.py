@@ -12,6 +12,11 @@ build. They exist because ``selected_analysts`` has no upstream env override at
 all, and so a deployment can pin the LLM stack without depending on upstream
 ``TRADINGAGENTS_*`` import-time state. Upstream ``TRADINGAGENTS_*`` variables
 keep working and are simply layered beneath these (GUI vars win).
+
+GUI baseline: with no deployment vars set at all, the GUI ships an opinionated
+LLM stack (OpenRouter + ``z-ai/glm-5.3-flash`` for both roles) so a deployment
+only needs to provide ``OPENROUTER_API_KEY``. The baseline never overrides an
+explicit ``TA_WEBGUI_*`` or ``TRADINGAGENTS_*`` choice for the same key.
 """
 
 from __future__ import annotations
@@ -35,6 +40,22 @@ _ANALYST_ALIASES: dict[str, str] = {
 }
 
 _DEFAULT_ANALYSTS = ("market", "social", "news", "fundamentals")
+
+# Opinionated GUI baseline (lowest precedence): applied when neither a
+# ``TA_WEBGUI_*`` var nor the matching upstream ``TRADINGAGENTS_*`` var is set.
+_GUI_BASELINE: dict[str, object] = {
+    "llm_provider": "openrouter",
+    "quick_think_llm": "z-ai/glm-5.3-flash",
+    "deep_think_llm": "z-ai/glm-5.3-flash",
+}
+
+# Upstream import-time env vars for the same keys; when one is set the user
+# made an explicit upstream choice the baseline must not override.
+_UPSTREAM_BASELINE_ENV: dict[str, str] = {
+    "llm_provider": "TRADINGAGENTS_LLM_PROVIDER",
+    "quick_think_llm": "TRADINGAGENTS_QUICK_THINK_LLM",
+    "deep_think_llm": "TRADINGAGENTS_DEEP_THINK_LLM",
+}
 
 
 def _env(name: str) -> str | None:
@@ -117,7 +138,14 @@ class DirectProvider:
         # Copy, never mutate, the upstream default: other providers/tests in
         # this process may rely on pristine upstream defaults.
         config = dict(DEFAULT_CONFIG)
-        config.update(_config_overrides_from_env())
+        overrides = _config_overrides_from_env()
+        for key, baseline in _GUI_BASELINE.items():
+            if key in overrides:
+                continue  # explicit TA_WEBGUI_* choice wins
+            if os.environ.get(_UPSTREAM_BASELINE_ENV[key]):
+                continue  # explicit upstream TRADINGAGENTS_* choice wins
+            config[key] = baseline
+        config.update(overrides)
         analysts = _selected_analysts_from_env() or _DEFAULT_ANALYSTS
         graph = TradingAgentsGraph(selected_analysts=analysts, config=config)
         return UpstreamRunner(graph, ticker, date, asset_type)

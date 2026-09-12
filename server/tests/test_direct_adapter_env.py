@@ -75,7 +75,7 @@ def _build_with_env(monkeypatch: pytest.MonkeyPatch, **env: str) -> StubUpstream
     return graph
 
 
-def test_no_env_vars_yield_pristine_upstream_defaults(
+def test_no_env_vars_apply_gui_baseline(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     for name in (
@@ -84,13 +84,38 @@ def test_no_env_vars_yield_pristine_upstream_defaults(
         "TA_WEBGUI_DEEP_MODEL",
         "TA_WEBGUI_SELECTED_ANALYSTS",
         "TA_WEBGUI_MAX_DEBATE_ROUNDS",
+        "TRADINGAGENTS_LLM_PROVIDER",
+        "TRADINGAGENTS_QUICK_THINK_LLM",
+        "TRADINGAGENTS_DEEP_THINK_LLM",
     ):
         monkeypatch.delenv(name, raising=False)
     DirectProvider().build_runner("NVDA", "2026-09-11")
     graph = StubUpstreamGraph.last_instance
     assert graph is not None
-    assert graph.config == _STUB_DEFAULT_CONFIG
+    assert graph.config["llm_provider"] == "openrouter"
+    assert graph.config["quick_think_llm"] == "z-ai/glm-5.3-flash"
+    assert graph.config["deep_think_llm"] == "z-ai/glm-5.3-flash"
+    # Non-baseline upstream defaults pass through untouched.
+    assert graph.config["data_cache_dir"] == "/tmp/stub-cache"
     assert graph.selected_analysts == ("market", "social", "news", "fundamentals")
+
+
+def test_upstream_tradingagents_env_beats_gui_baseline(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # An explicit upstream import-time choice must not be overridden.
+    graph = _build_with_env(
+        monkeypatch,
+        TRADINGAGENTS_LLM_PROVIDER="openai",
+        TRADINGAGENTS_QUICK_THINK_LLM="gpt-5.6-luna",
+    )
+    assert graph is not None
+    assert graph.config["llm_provider"] == "openai"
+    # Baseline skipped for quick role: the upstream env choice stands
+    # (stub default here; the real upstream bakes it in at import time).
+    assert graph.config["quick_think_llm"] == "quick-default"
+    # Deep role keeps the GUI baseline: no upstream choice was made for it.
+    assert graph.config["deep_think_llm"] == "z-ai/glm-5.3-flash"
 
 
 def test_llm_env_overrides_applied_onto_copied_config(
@@ -142,7 +167,8 @@ def test_blank_env_values_are_treated_as_unset(
 ) -> None:
     graph = _build_with_env(monkeypatch, TA_WEBGUI_LLM_PROVIDER="   ")
     assert graph is not None
-    assert graph.config["llm_provider"] == "openai"
+    # Blank = unset -> the shipped GUI baseline applies.
+    assert graph.config["llm_provider"] == "openrouter"
 
 
 def test_instructions_still_rejected_for_direct_provider() -> None:

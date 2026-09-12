@@ -21,7 +21,8 @@ See `docs/architecture.md` and the decision log in `docs/decisions/`.
 Two processes, same-origin through the Vite dev proxy (no CORS setup needed):
 
 ```bash
-# 1) Backend (FastAPI + SSE)
+# 1) Backend (FastAPI + SSE) — the only env var normally needed:
+export OPENROUTER_API_KEY=sk-or-...
 cd server
 uvicorn app.api.app:create_app --factory --host 127.0.0.1 --port 8000
 
@@ -63,6 +64,12 @@ TA_WEBGUI_MAX_DEBATE_ROUNDS=1
 
 Data vendors need no keys by default (yfinance). `macro_data` uses FRED
 (`FRED_API_KEY`) when selected.
+
+**Shipped defaults**: with no `TA_WEBGUI_*`/`TRADINGAGENTS_*` vars set, the GUI
+uses **OpenRouter with `z-ai/glm-5.3-flash`** for both the quick and deep
+roles — so the only LLM env var a normal deployment needs is
+`OPENROUTER_API_KEY`. Explicit `TA_WEBGUI_*` and upstream `TRADINGAGENTS_*`
+choices always win over this baseline (per key).
 
 ## Running & exposing
 
