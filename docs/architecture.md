@@ -65,8 +65,15 @@ Resource limits protecting the single-process backend (all configurable via
   both the API boundary and `JobManager.submit_run`) while allowing
   `\n`/`\r`/`\t` for prompt formatting.
 
-**Deployment assumption**: until authentication lands, the API is meant for a
-localhost / trusted-network deployment only — do not expose it publicly.
+### Deployment protection
+
+Modest, layered app-level protection per
+[ADR 0005](decisions/0005-app-level-protection.md): the reverse proxy owns TLS
+termination and rate limiting; the app optionally gates /api/* behind a static
+bearer token (TA_WEBGUI_API_TOKEN, GET /api/health stays open), adds four
+security headers to every response, and keeps CORS disabled by default
+(same-origin behind the proxy). Without the token set, behavior is identical
+to local development.
 
 ## Decision log
 

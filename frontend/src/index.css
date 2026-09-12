@@ -1,0 +1,55 @@
+@import "tailwindcss";
+
+/*
+ * Dark 'trading terminal' theme (Tailwind v4 CSS-first config).
+ * Near-black surfaces, slate text scale, emerald accent, mono numerics.
+ */
+@theme {
+  --color-terminal-bg: #0a0e14;
+  --color-terminal-panel: #0f141c;
+  --color-terminal-border: #1c2431;
+  --color-terminal-text: #d6deeb;
+  --color-terminal-muted: #64748b;
+  --color-terminal-accent: #10b981;
+  --color-terminal-accent-dim: #065f46;
+
+  --font-mono: "JetBrains Mono", "Fira Code", ui-monospace, SFMono-Regular,
+    Menlo, Consolas, monospace;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  background-color: var(--color-terminal-bg);
+  color: var(--color-terminal-text);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Mono styling for tickers, numbers, statuses. */
+.numeric {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Subtle scrollbars to match the terminal aesthetic. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #263042 transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background: #263042;
+  border-radius: 4px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
