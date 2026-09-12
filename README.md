@@ -16,6 +16,54 @@ A professional web interface for [TradingAgents](https://github.com/TauricResear
 
 See `docs/architecture.md` and the decision log in `docs/decisions/`.
 
+## Run locally (development)
+
+Two processes, same-origin through the Vite dev proxy (no CORS setup needed):
+
+```bash
+# 1) Backend (FastAPI + SSE)
+cd server
+uvicorn app.api.app:create_app --factory --host 127.0.0.1 --port 8000
+
+# 2) Frontend (separate terminal)
+cd frontend
+npm install
+npm run dev   # http://localhost:5173
+```
+
+`frontend/vite.config.ts` forwards `/api/*` to `http://127.0.0.1:8000`, so the
+client's same-origin `/api` calls just work in dev — no CORS configuration.
+
+**Optional auth**: set a token pair and restart both processes (Vite reads env
+at startup):
+
+```bash
+# backend shell
+cd server && TA_WEBGUI_API_TOKEN=$(openssl rand -hex 32) uvicorn app.api.app:create_app --factory --host 127.0.0.1 --port 8000
+
+# frontend: frontend/.env.local
+VITE_API_TOKEN=<same value>
+```
+
+**LLM keys**: the backend needs the API key for your chosen provider — e.g.
+`OPENROUTER_API_KEY` (any model id via `llm_provider=openrouter`),
+`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_API_KEY`, and so on (see
+`tradingagents/llm_clients/api_key_env.py`). Defaults are OpenAI
+(`gpt-5.6` / `gpt-5.6-luna`). Override provider/models/analyst scope with
+deployment env vars read by the `direct` adapter (all optional, copied onto a
+private config per run):
+
+```bash
+TA_WEBGUI_LLM_PROVIDER=openrouter
+TA_WEBGUI_QUICK_MODEL=openrouter/free-model-id
+TA_WEBGUI_DEEP_MODEL=openrouter/model-id
+TA_WEBGUI_SELECTED_ANALYSTS=market_analyst,news_analyst
+TA_WEBGUI_MAX_DEBATE_ROUNDS=1
+```
+
+Data vendors need no keys by default (yfinance). `macro_data` uses FRED
+(`FRED_API_KEY`) when selected.
+
 ## Running & exposing
 
 The backend is a FastAPI app started through uvicorn's factory mode. Bind it
