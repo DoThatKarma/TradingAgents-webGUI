@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { ApiError, api, type ConnectionPhase } from "../api/client";
+import { describeJobError } from "../api/errors";
 import type { JobStatus } from "../api/types";
 import {
   applyEnvelope,
@@ -113,7 +114,7 @@ export function RunView({ jobId, onBack }: { jobId: string; onBack: () => void }
         </div>
         {status?.error && (
           <p className="numeric mt-2 text-sm text-red-400" data-testid="run-error">
-            Error: {status.error}
+            Error: {describeJobError(status.error)}
           </p>
         )}
         {statusError && (

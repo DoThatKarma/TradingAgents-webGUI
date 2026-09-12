@@ -21,6 +21,9 @@ server/app/instructions/
 └── factory.py              # Chooses adapter; falls back to direct if ta_plugins unavailable
 ```
 
+- Graph config resolution (LLM provider/models, `selected_analysts`) is shared
+  by both adapters via `graph_config.py` — every run gets the same environment
+  layering (GUI baseline < upstream `TRADINGAGENTS_*` < `TA_WEBGUI_*`)
 - The run engine consumes a `GraphRunner` built by the selected `InstructionProvider`
 - If `ta_plugins` is missing/broken:
   - without custom instructions the factory falls back to `direct` (with a warning) — GUI still runs

@@ -95,6 +95,24 @@ class ProviderLockTimeoutError(RuntimeError):
     category = "ProviderLockTimeout"
 
 
+def _error_category(exc: BaseException) -> str:
+    """Classify an exception into the short, client-visible error category.
+
+    Error-hygiene contract: categories only — the full message stays in the
+    server log (see module docstring), never in the job snapshot. Explicit
+    ``category`` attributes win (e.g. ``ProviderLockTimeout``). ``ValueError``
+    messages mentioning the API key collapse into ``MissingApiKey`` so a
+    misconfigured deployment surfaces an actionable hint instead of a raw
+    provider error name; the provider-specific detail remains in the log.
+    """
+    explicit = getattr(exc, "category", None)
+    if explicit:
+        return str(explicit)
+    if isinstance(exc, ValueError) and "api key" in str(exc).lower():
+        return "MissingApiKey"
+    return type(exc).__name__
+
+
 @dataclass
 class _Subscriber:
     """One SSE follower: an event queue plus a terminal-state signal."""
@@ -341,7 +359,7 @@ class JobManager:
                 # M1: log details server-side; store only a short category.
                 logger.exception("job %s failed with %s", job.id, type(exc).__name__)
                 with job.lock:
-                    job.error = getattr(exc, "category", type(exc).__name__)
+                    job.error = _error_category(exc)
                 terminal = "failed"
             self._finish(job, terminal)
         finally:

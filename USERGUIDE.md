@@ -1,0 +1,90 @@
+# TradingAgents-webGUI
+
+A professional browser GUI for the TradingAgents multi-agent stock analysis
+framework: market, sentiment, news and fundamentals analysts → bull/bear
+research debate → trader → risk debate → final decision, live in your browser.
+
+Built-in LLM defaults: **OpenRouter** with model **z-ai/glm-5.3-flash** — you
+only need an OpenRouter API key (https://openrouter.ai/keys).
+
+## Quickstart (3 steps)
+
+Requires Python 3.11+ (https://www.python.org/downloads/).
+
+1. **Unzip** this file and open a terminal in the `tradingagents-webgui`
+   folder.
+
+2. **Install** (one time, Python 3.11+):
+
+   ```bash
+   python3 -m venv .venv
+   .venv/bin/python -m pip install -r requirements.lock
+   ```
+
+   ```bat
+   python -m venv .venv
+   .venv\Scripts\python -m pip install -r requirements.lock
+   ```
+
+3. **Run** with your OpenRouter key:
+
+   ```bash
+   OPENROUTER_API_KEY=sk-or-... ./run.sh
+   ```
+
+   ```bat
+   set OPENROUTER_API_KEY=sk-or-...
+   run.bat
+   ```
+
+Then open **http://127.0.0.1:8000**. (The run scripts also install into
+`.venv` automatically on first run if you skipped step 2. Stop with Ctrl+C.)
+
+## Where things live
+
+- Data caches (reports, market data, memories): `~/.tradingagents` — delete it
+  to reset (`C:\Users\<you>\.tradingagents` on Windows).
+- Built frontend assets: `webui/`, served by the backend automatically.
+- Server logs: the terminal you started the server from.
+
+## Security: localhost by default, optional API token
+
+The server binds to `127.0.0.1` — reachable only from your machine, no token
+needed. If you expose the port beyond localhost, set `TA_WEBGUI_API_TOKEN`:
+every API call except `/api/health` then requires
+`Authorization: Bearer <token>`.
+
+**Important:** the bundled web UI reads its token at *build* time
+(`VITE_API_TOKEN`), so this packaged build ships **without** a token and has
+no token prompt. A token-protected deployment requires rebuilding the
+frontend from source with `VITE_API_TOKEN` baked in. For anything beyond
+personal localhost use, run behind a reverse proxy with TLS (nginx/Caddy).
+
+## .env & API keys
+
+`export OPENROUTER_API_KEY=...` works, and so does a `.env` file: the upstream
+framework auto-loads one from the working directory upward. `run.sh` starts
+the server in `server/`, so a `.env` in the extracted root **or** in
+`server/` both work:
+
+```dotenv
+OPENROUTER_API_KEY=sk-or-v1-...
+# optional overrides (rarely needed):
+# TRADINGAGENTS_LLM_PROVIDER=openai
+# TRADINGAGENTS_QUICK_THINK_LLM=gpt-4o-mini
+```
+
+## Optional data keys
+
+- `FRED_API_KEY` — free key at
+  https://fred.stlouisfed.org/docs/api/api_key.html — enables macro-economic
+  indicators. Without it, `Vendor fred not configured` /
+  `Optional macro_data unavailable` log lines are expected and harmless (the
+  run falls back to the next data vendor).
+- Reddit RSS `429` backoff messages are upstream's built-in rate-limit
+  handling — harmless.
+
+## Upstream
+
+Built on [TradingAgents](https://github.com/TauricResearch/TradingAgents) by
+Tauric Research. This GUI is an independent project — see `LICENSE`.

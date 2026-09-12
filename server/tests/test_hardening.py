@@ -79,6 +79,42 @@ def test_failed_job_stores_category_only() -> None:
     assert secret_detail not in str(final["error"])
 
 
+class RaisingFactory:
+    """Graph factory that raises during runner construction (offline)."""
+
+    def __init__(self, message: str) -> None:
+        self._message = message
+
+    def __call__(self, spec: Any) -> StubRunner:
+        raise ValueError(self._message)
+
+
+def test_api_key_value_error_surfaces_missing_api_key_category() -> None:
+    detail = "API key for provider 'openrouter' is not set (OPENROUTER_API_KEY)"
+    manager = JobManager(engine=RunEngine(graph_factory=RaisingFactory(detail)))
+    job_id = manager.submit_run({"ticker": "NVDA", "date": "2025-01-10"})
+
+    final = manager.wait(job_id)
+
+    assert final["status"] == "failed"
+    # Client sees the actionable category only; the provider-specific detail
+    # (including the env var name) stays in the server log (ADR 0005).
+    assert final["error"] == "MissingApiKey"
+    assert "OPENROUTER_API_KEY" not in str(final["error"])
+
+
+def test_generic_value_error_keeps_class_name_category() -> None:
+    detail = "unrelated failure mentioning neither key nor provider"
+    manager = JobManager(engine=RunEngine(graph_factory=RaisingFactory(detail)))
+    job_id = manager.submit_run({"ticker": "NVDA", "date": "2025-01-10"})
+
+    final = manager.wait(job_id)
+
+    assert final["status"] == "failed"
+    assert final["error"] == "ValueError"
+    assert detail not in str(final["error"])
+
+
 def test_pool_full_rejects_new_submissions() -> None:
     gate = threading.Event()
     runner = GatedRunner(gate)
