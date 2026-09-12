@@ -5,6 +5,22 @@ A professional web interface for [TradingAgents](https://github.com/TauricResear
 
 > ⚠️ Under active development. Architecture and status: [`docs/architecture.md`](docs/architecture.md)
 
+## Download & run (user version)
+
+No dev tools needed — grab the latest zip from
+[**Releases**](https://github.com/DoThatKarma/TradingAgents-webGUI/releases),
+unzip, and:
+
+```bash
+export OPENROUTER_API_KEY=sk-or-...   # Windows: set OPENROUTER_API_KEY=sk-or-...
+./run.sh                              # Windows: run.bat
+```
+
+Then open **http://127.0.0.1:8000** — the app serves its own UI, single process.
+Defaults ship as OpenRouter + `z-ai/glm-5.3-flash`; see the packaged README for
+details (config, caches, optional token auth).
+
+
 ## Goals
 
 - Run TradingAgents analyses from the browser with **live per-agent progress**

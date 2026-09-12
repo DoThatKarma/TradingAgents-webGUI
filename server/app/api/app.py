@@ -25,22 +25,30 @@ App-level protection (ADR 0005): an optional static bearer-token gate for
 health checks) plus minimal security headers on every response. Both are
 pure-ASGI middlewares; CORS is disabled by default (same-origin behind a
 reverse proxy). Bind uvicorn to localhost unless the token is set.
+
+Single-process SPA hosting (ADR 0006): when ``TA_WEBGUI_STATIC_DIR`` points to
+a built frontend dist (or a bundled ``webui/`` is auto-detected next to the
+server package), the app serves ``/`` and ``/assets/*`` plus an SPA fallback
+for unknown non-API GET paths; unknown ``/api/*`` paths keep their 404.
 """
 
 from __future__ import annotations
 
 import hmac
 import json
+import logging
 import os
 from collections.abc import Iterable, Iterator
+from pathlib import Path
 from typing import Any, Literal
 
 from fastapi import FastAPI, Header, HTTPException, Query
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field, field_validator
 from sse_starlette.event import ServerSentEvent
 from sse_starlette.sse import EventSourceResponse
+from starlette.staticfiles import StaticFiles
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from app.engine.runner import RunEngine
@@ -72,6 +80,127 @@ _SECURITY_HEADERS: tuple[tuple[str, str], ...] = (
 
 # Lowercase raw byte names: replace (not duplicate) same-named inner headers.
 _SECURITY_HEADER_NAMES = frozenset(name.encode("latin-1").lower() for name, _ in _SECURITY_HEADERS)
+
+_LOGGER = logging.getLogger(__name__)
+
+_STATIC_DIR_ENV_VAR = "TA_WEBGUI_STATIC_DIR"
+
+# Directory name auto-detected next to the server package (release zip layout
+# and dev-tree convenience).
+_BUNDLED_STATIC_DIRNAME = "webui"
+
+
+def _bundled_static_candidates() -> list[Path]:
+    """Auto-detect candidates for a bundled SPA next to the server package.
+
+    Priority order (release layout first):
+    1. ``webui/`` sibling of the ``app`` package (release zip layout:
+       ``server/`` and ``webui/`` side by side)
+    2. ``webui/`` next to the ``server/`` directory (dev-tree convenience)
+
+    Sealed at module level so tests can patch it without touching disk.
+    """
+    server_dir = Path(__file__).resolve().parent.parent.parent  # .../server
+    return [
+        server_dir / _BUNDLED_STATIC_DIRNAME,
+        server_dir.parent / _BUNDLED_STATIC_DIRNAME,
+    ]
+
+
+def _looks_like_spa_dist(path: Path) -> bool:
+    """A usable SPA dist must be a directory containing ``index.html``."""
+    return path.is_dir() and (path / "index.html").is_file()
+
+
+def _resolve_static_dir() -> Path | None:
+    """Resolve the SPA dist directory: explicit env var wins over auto-detect.
+
+    Returns ``None`` when hosting stays disabled. Fail-open by design: a
+    missing or invalid target only logs a warning and leaves the app in
+    API-only mode — a misconfigured path must never crash the factory.
+    """
+    configured = os.environ.get(_STATIC_DIR_ENV_VAR, "").strip()
+    if configured:
+        # Whitespace-only values are treated as unset (same policy as the
+        # bearer token): no gate/hosting that only matches after stripping.
+        candidate = Path(configured).expanduser()
+        if _looks_like_spa_dist(candidate):
+            return candidate
+        if candidate.is_dir():
+            _LOGGER.warning(
+                "%s points to %s which lacks index.html; "
+                "single-process SPA hosting stays disabled (API-only)",
+                _STATIC_DIR_ENV_VAR,
+                candidate,
+            )
+        else:
+            _LOGGER.warning(
+                "%s points to missing directory %s; "
+                "single-process SPA hosting stays disabled (API-only)",
+                _STATIC_DIR_ENV_VAR,
+                candidate,
+            )
+        return None
+    for candidate in _bundled_static_candidates():
+        if _looks_like_spa_dist(candidate):
+            return candidate
+        if candidate.is_dir():
+            # Present but not a built SPA: suspicious, worth a warning;
+            # fully absent candidates are the normal dev-tree case (silent).
+            _LOGGER.warning(
+                "Auto-detected SPA directory %s lacks index.html; "
+                "single-process SPA hosting stays disabled (API-only)",
+                candidate,
+            )
+    return None
+
+
+def _mount_static_spa(app: FastAPI, static_dir: Path) -> None:
+    """Serve the built SPA from the API process (opt-in; ADR 0006).
+
+    ``/assets/*`` maps onto the dist's ``assets/`` directory, ``/`` serves
+    ``index.html``, and unknown non-``/api`` GET paths fall back to
+    ``index.html`` so client-side routing works. Registered after all API
+    routes so exact API routes keep priority; unknown ``/api/*`` paths keep
+    their normal 404 (the catch-all explicitly refuses them).
+
+    Static files stay outside the bearer gate (it covers ``/api/*`` only) —
+    correct for the local single-user release; public deployments should
+    still front the app with a reverse proxy (ADR 0005/0006).
+    """
+    index_file = static_dir / "index.html"
+    assets_dir = static_dir / "assets"
+    if assets_dir.is_dir():
+        app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
+
+    resolved_root = static_dir.resolve()
+
+    def _static_file_or_index(spa_path: str) -> FileResponse:
+        # Serve real files from the dist when they exist (e.g. favicon),
+        # fall back to index.html for client-side routes.
+        try:
+            candidate = (static_dir / spa_path).resolve()
+            candidate.relative_to(resolved_root)
+            is_file = bool(spa_path) and candidate.is_file()
+        except (ValueError, OSError) as exc:
+            # Malformed input (e.g. a null byte) or a path traversal attempt:
+            # never serve anything outside the dist, never raise a 500.
+            raise HTTPException(status_code=404, detail="Not Found") from exc
+        if is_file:
+            return FileResponse(candidate)
+        return FileResponse(index_file)
+
+    @app.get("/", include_in_schema=False)
+    def spa_index() -> FileResponse:
+        return FileResponse(index_file)
+
+    @app.get("/{spa_path:path}", include_in_schema=False)
+    def spa_fallback(spa_path: str) -> FileResponse:
+        # Unknown /api/* paths keep the framework's normal 404 — the SPA
+        # fallback must never shadow API error semantics.
+        if spa_path == "api" or spa_path.startswith("api/"):
+            raise HTTPException(status_code=404, detail="Not Found")
+        return _static_file_or_index(spa_path)
 
 
 class BearerTokenMiddleware:
@@ -323,5 +452,16 @@ def create_app(engine: RunEngine | None = None, manager: JobManager | None = Non
     @app.get("/api/health")
     def health() -> dict[str, str]:
         return {"status": "ok"}
+
+    # Opt-in single-process SPA hosting (ADR 0006). Registered after every API
+    # route so exact API routes keep priority and the catch-all fallback only
+    # ever serves what nothing else matched. Static hosting is disabled unless
+    # a valid SPA dist is found; failures log a warning and fail open to the
+    # previous API-only behaviour. The security-headers middleware (outermost)
+    # also wraps static responses; the bearer gate still covers /api/* only.
+    static_dir = _resolve_static_dir()
+    if static_dir is not None:
+        _LOGGER.info("Serving SPA from %s", static_dir)
+        _mount_static_spa(app, static_dir)
 
     return app
