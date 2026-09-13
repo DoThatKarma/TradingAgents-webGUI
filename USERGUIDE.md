@@ -4,6 +4,8 @@ A professional browser GUI for the TradingAgents multi-agent stock analysis
 framework: market, sentiment, news and fundamentals analysts → bull/bear
 research debate → trader → risk debate → final decision, live in your browser.
 
+When a run completes, a **Download report** button lets you save the full analysis as a Markdown file.
+
 Built-in LLM defaults: **OpenRouter** with model **z-ai/glm-5.3-flash** — you
 only need an OpenRouter API key (https://openrouter.ai/keys).
 

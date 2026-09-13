@@ -20,6 +20,8 @@ export OPENROUTER_API_KEY=sk-or-...   # Windows: set OPENROUTER_API_KEY=sk-or-..
 ```
 
 Then open **http://127.0.0.1:8000** — the app serves its own UI, single process.
+
+![The TradingAgents Terminal start screen](docs/images/gui-interface.png)
 Defaults ship as OpenRouter + `z-ai/glm-5.3-flash`; see the packaged README for
 details (config, caches, optional token auth).
 
