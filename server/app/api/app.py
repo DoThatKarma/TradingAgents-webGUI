@@ -73,6 +73,7 @@ _STATIC_INVALID_REQUEST = "invalid run request"
 _STATIC_UNAUTHORIZED = "unauthorized"
 
 _TOKEN_ENV_VAR = "TA_WEBGUI_API_TOKEN"
+_PERSIST_DIR_ENV_VAR = "TA_WEBGUI_PERSIST_DIR"
 
 # Paths inside /api/* that stay reachable without a token (proxy health checks).
 _AUTH_EXEMPT_PATHS = frozenset({"/api/health"})
@@ -371,7 +372,12 @@ def create_app(engine: RunEngine | None = None, manager: JobManager | None = Non
         openapi_url="/openapi.json" if docs_enabled else None,
     )
     if manager is None:
-        manager = JobManager(engine or RunEngine())
+        # Optional durable run persistence (ADR 0008): unset/empty disables
+        # persistence entirely (previous in-memory behavior); a configured
+        # path makes JobManager persist every terminal run under
+        # <dir>/jobs/<job_id>.json and restore prior runs at startup.
+        persist_dir = os.environ.get(_PERSIST_DIR_ENV_VAR, "").strip() or None
+        manager = JobManager(engine or RunEngine(), persist_dir=persist_dir)
 
     # App-level protection (ADR 0005). The optional bearer gate reads the
     # token at factory time, so apps built without TA_WEBGUI_API_TOKEN behave

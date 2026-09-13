@@ -63,8 +63,32 @@ and precedence rules). The chosen depth is shown as a badge on the run page.
 
 - Data caches (reports, market data, memories): `~/.tradingagents` — delete it
   to reset (`C:\Users\<you>\.tradingagents` on Windows).
+- Finished-run history (see *Run persistence* below): `data/runs/` in the
+  application folder when started with the run scripts.
 - Built frontend assets: `webui/`, served by the backend automatically.
 - Server logs: the terminal you started the server from.
+
+## Run persistence: finished runs survive restarts
+
+When started with `run.sh` / `run.bat`, every **finished** run (completed,
+failed, or cancelled) is saved as one JSON file under
+`data/runs/jobs/<run id>.json`, and this history is restored automatically
+on the next start — status, the run list, and the Markdown report download
+all keep working after a restart or version switch. Restored runs are never
+re-executed; deleting a run in the UI removes its file as well. Files
+contain analysis content and run metadata (never API keys or tracebacks).
+
+- **Override the location:** export `TA_WEBGUI_PERSIST_DIR=/some/dir` before
+  launching (Windows: `set TA_WEBGUI_PERSIST_DIR=D:\some\dir`).
+- **Disable persistence:** set `TA_WEBGUI_PERSIST_DIR` to an empty string
+  (`export TA_WEBGUI_PERSIST_DIR=`). Without the variable — e.g. when
+  starting the server manually with uvicorn — runs stay in memory only and
+  are lost on restart, exactly as before.
+- **What survives a restart:** finished runs and their reports. Runs that
+  were still queued or running when the server stopped are gone (they are
+  not persisted) — start them again.
+- **Disk space:** one small JSON file per run; delete runs in the UI (or
+  remove files) to reclaim space.
 
 ## Security: localhost by default, optional API token
 

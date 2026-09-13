@@ -39,6 +39,11 @@ type nul > "%VENV_DIR%\.deps-installed"
 rem 3. Environment: static SPA hosting for the bundled webui (single process).
 set "TA_WEBGUI_STATIC_DIR=%SCRIPT_DIR%webui"
 
-rem 4. Start the API + SPA server from the server\ directory.
+rem 4. Durable run persistence (ADR 0008): finished runs survive restarts.
+rem    Override by setting TA_WEBGUI_PERSIST_DIR before launching.
+if not defined TA_WEBGUI_PERSIST_DIR set "TA_WEBGUI_PERSIST_DIR=%SCRIPT_DIR%data\runs"
+if not exist "%TA_WEBGUI_PERSIST_DIR%" mkdir "%TA_WEBGUI_PERSIST_DIR%"
+
+rem 5. Start the API + SPA server from the server\ directory.
 cd /d "%SERVER_DIR%"
 "%VENV_DIR%\Scripts\python.exe" -m uvicorn app.api.app:create_app --factory --host 127.0.0.1 --port 8000

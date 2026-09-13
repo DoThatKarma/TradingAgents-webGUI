@@ -30,7 +30,13 @@ Resource limits (hardening)
   envelope replays only from that envelope — earlier events are
   unrecoverable.
 - Terminal jobs are evicted after ``job_ttl_seconds`` by a sweep that runs
-  on ``submit_run``/``status``/``list_jobs`` calls (no timer thread).
+  on ``submit_run``/``status``/``list_jobs`` calls (no timer thread) —
+  unless persisted: with ``persist_dir`` configured (ADR 0008), every
+  terminal job is written atomically to ``<dir>/jobs/<job_id>.json`` and
+  stays exempt from TTL eviction (kept in memory until process exit or
+  explicit deletion); startup restores prior terminal jobs from disk.
+- Persistence payloads carry analysis content and short error categories
+  only (never tracebacks); secret-looking keys are scrubbed before disk.
 - ``max_subscribers`` caps concurrent SSE subscribers per job; excess
   subscribers are rejected with :class:`SubscriberLimitError` (``429``).
 - Error hygiene: job errors store a short category only (exception class
@@ -42,16 +48,18 @@ from __future__ import annotations
 
 import itertools
 import logging
+import os
 import threading
 import time
 import unicodedata
 import uuid
 from collections.abc import Iterator
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from queue import Empty, Queue
 from typing import Any
 
 from app.engine.runner import RunCancelled, RunEngine, RunSpec
+from app.jobs.persistence import RunStore
 
 logger = logging.getLogger(__name__)
 
@@ -164,6 +172,7 @@ class JobManager:
         job_ttl_seconds: float = 3600.0,
         max_subscribers: int = 10,
         provider_lock_timeout: float = 120.0,
+        persist_dir: str | os.PathLike[str] | None = None,
     ) -> None:
         self._engine = engine or RunEngine()
         self._jobs: dict[str, _Job] = {}
@@ -175,6 +184,54 @@ class JobManager:
         self._job_ttl = job_ttl_seconds
         self._max_subscribers = max_subscribers
         self._provider_lock_timeout = provider_lock_timeout
+        # Optional disk persistence (ADR 0008). None → exactly the previous
+        # in-memory behavior. With a directory set, every terminal job is
+        # written atomically to <dir>/jobs/<job_id>.json, terminal jobs are
+        # exempt from TTL eviction (kept in memory for the process lifetime),
+        # and prior finished jobs are restored read-only at construction.
+        self._store = RunStore(persist_dir) if persist_dir is not None else None
+        if self._store is not None:
+            self._restore()
+
+    def _job_from_payload(self, job: dict[str, Any]) -> _Job:
+        """Rebuild a read-only terminal job from a validated store payload."""
+        spec_data = job["spec"]
+        spec = RunSpec(
+            ticker=str(spec_data.get("ticker", "")),
+            date=str(spec_data.get("date", "")),
+            asset_type=str(spec_data.get("asset_type", "stock")),
+            instructions=spec_data.get("instructions"),
+            provider=str(spec_data.get("provider", "direct")),
+            effective_provider=spec_data.get("effective_provider"),
+        )
+        events = list(job["events"])
+        return _Job(
+            id=job["id"],
+            spec=spec,
+            status=str(job["status"]),
+            error=job.get("error"),
+            created_at=float(job["created_at"]),
+            terminal_at=float(job["terminal_at"]),
+            next_seq=len(events) + 1,
+            events=events,
+        )
+
+    def _restore(self) -> None:
+        """Load persisted terminal jobs into memory (once, at construction).
+
+        Restored jobs are history, not work: they are never re-executed and
+        have no worker thread or live subscribers. Status, run list, SSE
+        replay, and report export work for them; deletion removes the disk
+        copy too. Invalid files are skipped by the store with a warning.
+        """
+        assert self._store is not None
+        restored = 0
+        for payload in self._store.load_all():
+            job = self._job_from_payload(payload)
+            self._jobs[job.id] = job
+            restored += 1
+        if restored:
+            logger.info("restored %d persisted run(s) from %s", restored, self._store.jobs_dir)
 
     def submit_run(self, config: dict[str, Any]) -> str:
         """Create a job from a run config dict and start its worker thread.
@@ -276,7 +333,7 @@ class JobManager:
         return [self._snapshot(job) for job in jobs]
 
     def delete_job(self, job_id: str) -> bool:
-        """Evict a terminal job from the registry.
+        """Evict a terminal job from the registry (and disk, when persisted).
 
         Refuses non-terminal jobs with :class:`JobNotTerminalError`; unknown
         ids raise :class:`KeyError`.
@@ -287,6 +344,9 @@ class JobManager:
                 raise JobNotTerminalError(f"job {job_id} is not terminal yet")
         with self._registry_lock:
             self._jobs.pop(job_id, None)
+        if self._store is not None:
+            # Explicit user deletion removes the durable copy as well.
+            self._store.delete(job_id)
         return True
 
     def cancel(self, job_id: str) -> bool:
@@ -306,6 +366,7 @@ class JobManager:
                 job.terminal_at = time.time()
                 for subscriber in job.subscribers.values():
                     subscriber.done.set()
+                self._persist_locked(job)
             return True
 
     def subscribe(self, job_id: str, cursor: int = 0) -> Iterator[dict[str, Any]]:
@@ -347,7 +408,15 @@ class JobManager:
             return self._jobs[job_id]
 
     def _sweep(self) -> None:
-        """Evict terminal jobs past their TTL (called on public entry points)."""
+        """Evict terminal jobs past their TTL (called on public entry points).
+
+        With persistence active (ADR 0008) terminal jobs are exempt: they are
+        on disk and stay in memory for the process lifetime, so a restarted
+        server keeps serving them without re-execution. Only explicit
+        deletion removes them.
+        """
+        if self._store is not None:
+            return
         now = time.time()
         with self._registry_lock:
             expired = [
@@ -429,6 +498,30 @@ class JobManager:
             job.terminal_at = time.time()
             for subscriber in job.subscribers.values():
                 subscriber.done.set()
+            self._persist_locked(job)
+
+    def _persist_locked(self, job: _Job) -> None:
+        """Write the terminal snapshot to disk; best effort, never raises.
+
+        Caller holds ``job.lock`` (the terminal state is final, so the
+        snapshot is consistent). Persistence failures are logged and
+        swallowed: disk problems must never crash a worker or corrupt job
+        state (ADR 0008).
+        """
+        if self._store is None:
+            return
+        try:
+            self._store.save(
+                job_id=job.id,
+                spec=asdict(job.spec),
+                status=job.status,
+                error=job.error,
+                created_at=job.created_at,
+                terminal_at=job.terminal_at if job.terminal_at is not None else time.time(),
+                events=list(job.events),
+            )
+        except OSError:
+            logger.exception("persisting job %s failed", job.id)
 
     @staticmethod
     def _follow(
