@@ -4,6 +4,7 @@ A professional web interface for [TradingAgents](https://github.com/TauricResear
 — the multi-agent hedge-fund research framework — served in the browser.
 
 > ⚠️ Under active development. Architecture and status: [`docs/architecture.md`](docs/architecture.md)
+> If u want to contribute, we would love someone to help maintaining it all! Please reach out to me, BTC donations are also welcome(See BIO: https://github.com/DoThatKarma and make sure to let me know u want it to through this repo!  Thank you!
 
 ## Download & run (user version)
 
