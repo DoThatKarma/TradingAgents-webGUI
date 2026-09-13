@@ -20,8 +20,8 @@ export OPENROUTER_API_KEY=sk-or-...   # Windows: set OPENROUTER_API_KEY=sk-or-..
 ```
 
 Then open **http://127.0.0.1:8000** — the app serves its own UI, single process.
-You can also add a file into the mainfolder with .env and OPENROUTER_API_KEY (or
-OPENAI_API_KEY +++ ) 
+You can also add a env file into the mainfolder with (named .env) and put in
+OPENROUTER_API_KEY (or OPENAI_API_KEY +++ ) on the first line.
 
 ![The TradingAgents Terminal start screen](docs/images/gui-interface.png)
 Defaults ship as OpenRouter + `z-ai/glm-5.3-flash`; see the packaged README for
