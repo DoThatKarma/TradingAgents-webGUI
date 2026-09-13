@@ -24,7 +24,7 @@ Prefer not to export? Add a `.env` file to the main folder with your key on the
 first line — e.g. `OPENROUTER_API_KEY=sk-or-...` (other providers like
 `OPENAI_API_KEY` work too; see `USERGUIDE.md`).
 
-![The TradingAgents Terminal start screen](docs/images/gui-interface.png)
+![New Analysis form with ticker, date, asset type, provider, depth and custom instructions](docs/images/gui-interface.png)
 Defaults ship as OpenRouter + `z-ai/glm-5.3-flash`; see the packaged README for
 details (config, caches, optional token auth).
 
