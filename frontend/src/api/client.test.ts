@@ -232,3 +232,55 @@ describe("openEventStream", () => {
         vi.unstubAllEnvs();
   });
 });
+
+describe("downloadReport", () => {
+  const markdownOk = (body: string, headers: Record<string, string> = {}) =>
+    new Response(body, {
+      status: 200,
+      headers: { "Content-Type": "text/markdown; charset=utf-8", ...headers },
+    });
+
+  it("fetches the report endpoint with the bearer and parses the filename", async () => {
+    vi.stubEnv("VITE_API_TOKEN", "tok");
+    const client = new ApiClient();
+    fetchMock.mockResolvedValue(
+      markdownOk("# TradingAgents Analysis Report", {
+        "Content-Disposition": 'attachment; filename="tradingagents-NVDA-2025-01-10.md"',
+      }),
+    );
+
+    const { blob, filename } = await client.downloadReport("j1");
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("/api/runs/j1/report");
+    expect((init.headers as Record<string, string>)["Authorization"]).toBe("Bearer tok");
+    expect(filename).toBe("tradingagents-NVDA-2025-01-10.md");
+    expect(blob.type).toBe("text/markdown;charset=utf-8");
+    expect(blob.size).toBe("# TradingAgents Analysis Report".length);
+    vi.unstubAllEnvs();
+  });
+
+  it("falls back to a job-id filename without Content-Disposition", async () => {
+    vi.stubEnv("VITE_API_TOKEN", "");
+    const client = new ApiClient();
+    fetchMock.mockResolvedValue(markdownOk("# report"));
+
+    const { filename } = await client.downloadReport("job-9");
+
+    expect(filename).toBe("tradingagents-job-9.md");
+    vi.unstubAllEnvs();
+  });
+
+  it("maps 404 to ApiError with the static detail", async () => {
+    vi.stubEnv("VITE_API_TOKEN", "");
+    const client = new ApiClient();
+    fetchMock.mockResolvedValue(jsonOk({ detail: "report not available" }, 404));
+
+    await expect(client.downloadReport("j1")).rejects.toMatchObject({
+      name: "ApiError",
+      status: 404,
+      detail: "report not available",
+    });
+    vi.unstubAllEnvs();
+  });
+});

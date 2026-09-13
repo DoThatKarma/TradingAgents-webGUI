@@ -21,6 +21,8 @@ export function RunView({ jobId, onBack }: { jobId: string; onBack: () => void }
   const [phase, setPhase] = useState<ConnectionPhase | null>(null);
   const [cancelNote, setCancelNote] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [downloadNote, setDownloadNote] = useState<string | null>(null);
 
   const refreshStatus = useCallback(async () => {
     try {
@@ -73,6 +75,31 @@ export function RunView({ jobId, onBack }: { jobId: string; onBack: () => void }
       );
     } finally {
       setCancelling(false);
+    }
+  };
+
+  const handleDownload = async () => {
+    if (downloading) return;
+    setDownloading(true);
+    setDownloadNote(null);
+    try {
+      const { blob, filename } = await api.downloadReport(jobId);
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = filename;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setDownloadNote(
+        err instanceof ApiError
+          ? `Download failed (${err.status}): ${err.detail}`
+          : "Download failed — network error.",
+      );
+    } finally {
+      setDownloading(false);
     }
   };
 
@@ -149,8 +176,22 @@ export function RunView({ jobId, onBack }: { jobId: string; onBack: () => void }
 
         <div className="space-y-4">
           {pipeline.decision && (
-            <DecisionCard signal={pipeline.decision.signal} decision={pipeline.decision.decision} />
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <DecisionCard signal={pipeline.decision.signal} decision={pipeline.decision.decision} />
+              {status?.status === "completed" && (
+                <button
+                  type="button"
+                  onClick={handleDownload}
+                  disabled={downloading}
+                  className="numeric shrink-0 rounded border border-terminal-border px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-slate-400 transition hover:border-terminal-accent hover:text-terminal-text disabled:opacity-40"
+                  data-testid="download-report"
+                >
+                  {downloading ? "Preparing…" : "Download report"}
+                </button>
+              )}
+            </div>
           )}
+          {downloadNote && <p className="text-xs text-amber-300">{downloadNote}</p>}
           {terminal && !decisionReceived && status?.status === "failed" && (
             <p className="text-sm text-slate-500" data-testid="no-decision">
               Run failed before a decision was reached.

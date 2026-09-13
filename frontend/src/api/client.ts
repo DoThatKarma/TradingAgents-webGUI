@@ -124,6 +124,23 @@ export class ApiClient {
   }
 
   /**
+   * GET /api/runs/{id}/report — completed run's report as a Markdown blob.
+   * Returns the blob plus the server-suggested filename (Content-Disposition);
+   * falls back to a job-id-based name when the header is absent. 404 for runs
+   * that are not completed or have no stored report.
+   */
+  async downloadReport(jobId: string): Promise<{ blob: Blob; filename: string }> {
+    const res = await fetch(`${this.base}/runs/${encodeURIComponent(jobId)}/report`, {
+      headers: this.headers(),
+    });
+    if (!res.ok) throw await this.readError(res);
+    const disposition = res.headers.get("Content-Disposition") ?? "";
+    const match = /filename="([^"]+)"/.exec(disposition);
+    const blob = await res.blob();
+    return { blob, filename: match?.[1] ?? `tradingagents-${jobId}.md` };
+  }
+
+  /**
    * Subscribe to the SSE run-event stream with automatic reconnect.
    *
    * Replays from `cursor` (last seq seen); reconnects resend the cursor

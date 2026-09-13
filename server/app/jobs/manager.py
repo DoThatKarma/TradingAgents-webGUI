@@ -95,6 +95,10 @@ class ProviderLockTimeoutError(RuntimeError):
     category = "ProviderLockTimeout"
 
 
+class ReportNotReadyError(RuntimeError):
+    """Report export was requested for a run without exportable content."""
+
+
 def _error_category(exc: BaseException) -> str:
     """Classify an exception into the short, client-visible error category.
 
@@ -222,6 +226,42 @@ class JobManager:
         job = self._require(job_id)
         with job.lock:
             return self._snapshot(job)
+
+    def export_report_material(self, job_id: str) -> dict[str, Any]:
+        """Return the material for report export of a completed run.
+
+        Reads the event log under the job lock (same consistency contract as
+        :meth:`status`): spec metadata, latest report content per key, and the
+        final decision event. Raises :class:`ReportNotReadyError` for unknown
+        ids, non-completed runs, and completed runs without any stored report
+        content — the API maps all three to the same 404 semantics.
+        """
+        self._sweep()
+        job = self._require(job_id)
+        with job.lock:
+            if job.status != "completed":
+                raise ReportNotReadyError(f"job {job_id} has no completed report")
+            reports: dict[str, str] = {}
+            decision: dict[str, Any] | None = None
+            for envelope in job.events:
+                event = envelope["event"]
+                kind = event.get("type")
+                if kind == "report" and event.get("content"):
+                    reports[str(event["key"])] = str(event["content"])
+                elif kind == "decision":
+                    decision = event
+            if not reports:
+                raise ReportNotReadyError(f"job {job_id} has no stored report content")
+            return {
+                "ticker": job.spec.ticker,
+                "date": job.spec.date,
+                "asset_type": job.spec.asset_type,
+                "provider": job.spec.provider,
+                "has_instructions": job.spec.instructions is not None,
+                "completed_at": job.terminal_at,
+                "reports": reports,
+                "decision": decision,
+            }
 
     def list_jobs(self) -> list[dict[str, Any]]:
         """Return status snapshots for all non-evicted jobs (creation order)."""

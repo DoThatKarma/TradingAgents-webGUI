@@ -11,6 +11,10 @@ Endpoints (all JSON):
   ``Last-Event-ID`` header (browser EventSource reconnects send it
   automatically; a valid header takes precedence over ``cursor``). Each SSE
   event's ``id`` is the event log ``seq``. Keep-alive pings are enabled.
+- ``GET /api/runs/{id}/report`` — download a completed run's full report as
+  a ``text/markdown`` attachment (metadata header, one section per stored
+  report, final decision); runs that are not completed or without stored
+  report content return 404
 - ``GET /api/health`` — liveness probe
 
 Error hygiene (hardening): client-facing 422/429 details are static text —
@@ -44,7 +48,7 @@ from typing import Any, Literal
 
 from fastapi import FastAPI, Header, HTTPException, Query
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from pydantic import BaseModel, Field, field_validator
 from sse_starlette.event import ServerSentEvent
 from sse_starlette.sse import EventSourceResponse
@@ -56,9 +60,11 @@ from app.jobs.manager import (
     JobManager,
     JobNotTerminalError,
     PoolFullError,
+    ReportNotReadyError,
     SubscriberLimitError,
     validate_instructions,
 )
+from app.jobs.report import build_report_markdown, report_filename
 
 _RETRY_AFTER_SECONDS = "5"
 
@@ -405,6 +411,31 @@ def create_app(engine: RunEngine | None = None, manager: JobManager | None = Non
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="unknown run") from exc
         return JobStatusResponse(**snapshot)
+
+    @app.get(
+        "/api/runs/{job_id}/report",
+        responses={
+            404: {"description": "Run unknown or no completed report available"},
+        },
+    )
+    def download_report(job_id: str) -> Response:
+        """Download a completed run's full report as Markdown (attachment)."""
+        try:
+            material = manager.export_report_material(job_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="unknown run") from exc
+        except ReportNotReadyError as exc:
+            # Static detail: no server-side error details reflected (ADR 0005).
+            raise HTTPException(status_code=404, detail="report not available") from exc
+        markdown = build_report_markdown(material)
+        filename = report_filename(material["ticker"], material["date"])
+        return Response(
+            content=markdown,
+            media_type="text/markdown; charset=utf-8",
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"',
+            },
+        )
 
     @app.delete("/api/runs/{job_id}")
     def delete_run(job_id: str) -> dict[str, Any]:
