@@ -42,6 +42,7 @@ class RunSpec:
     asset_type: str = "stock"
     instructions: str | None = None
     provider: str = "direct"
+    depth: str = "standard"
     effective_provider: str | None = None
 
 
@@ -137,7 +138,9 @@ def _default_graph_factory(spec: RunSpec) -> GraphRunner:
     # Stamp the resolved provider (after any fallback) so the manager can
     # report the effective provider per job (review fix S1).
     spec.effective_provider = getattr(provider, "name", spec.provider)
-    return provider.build_runner(spec.ticker, spec.date, spec.asset_type, spec.instructions)
+    return provider.build_runner(
+        spec.ticker, spec.date, spec.asset_type, spec.instructions, spec.depth
+    )
 
 
 class RunEngine:

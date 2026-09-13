@@ -59,6 +59,7 @@ describe("ApiClient auth header", () => {
       date: "2024-05-10",
       asset_type: "stock",
       provider: "direct",
+      depth: "standard",
     });
 
     const [, postInit] = fetchMock.mock.calls[0] as [string, RequestInit];
@@ -80,6 +81,7 @@ describe("ApiClient error mapping", () => {
         date: "2024-05-10",
         asset_type: "stock",
         provider: "direct",
+        depth: "standard",
       }),
     ).rejects.toMatchObject({ status: 422, detail: "invalid run request" });
     vi.unstubAllEnvs();

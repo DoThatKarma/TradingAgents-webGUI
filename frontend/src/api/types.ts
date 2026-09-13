@@ -3,14 +3,17 @@
 
 export const ASSET_TYPES = ["stock", "crypto", "polymarket"] as const;
 export const PROVIDERS = ["direct", "ta_plugins"] as const;
+export const DEPTHS = ["fast", "standard", "deep"] as const;
 export type AssetType = (typeof ASSET_TYPES)[number];
 export type Provider = (typeof PROVIDERS)[number];
+export type Depth = (typeof DEPTHS)[number];
 
 export interface RunConfig {
   ticker: string;
   date: string;
   asset_type: AssetType;
   provider: Provider;
+  depth: Depth;
   instructions?: string | null;
 }
 
@@ -35,6 +38,7 @@ export interface JobStatus {
   date: string;
   asset_type: string;
   provider: string;
+  depth: string;
   effective_provider: string | null;
   has_instructions: boolean;
   status: RunStatus;

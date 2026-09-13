@@ -42,6 +42,23 @@ Requires Python 3.11+ (https://www.python.org/downloads/).
 Then open **http://127.0.0.1:8000**. (The run scripts also install into
 `.venv` automatically on first run if you skipped step 2. Stop with Ctrl+C.)
 
+## Choosing analysis depth
+
+The New Analysis form has a **depth** selector (default **standard**):
+
+- **Fast** — quick scan: no research/risk debates, fast models for both
+  roles, market + fundamentals analysts only, smaller news windows.
+- **Standard** — the balanced default: one research debate round, all four
+  analysts, your configured models. Behaves exactly like previous releases.
+- **Deep** — most thorough: 3 research debate rounds, 2 risk debate rounds,
+  all four analysts, high reasoning effort (where the provider supports it),
+  larger news windows and a bigger step budget. Costs more tokens and time.
+
+Depth settings beat `TA_WEBGUI_*` / `TRADINGAGENTS_*` environment variables
+for the settings the preset controls; everything else still honours the
+environment (see `docs/decisions/0007-depth-presets.md` for the exact table
+and precedence rules). The chosen depth is shown as a badge on the run page.
+
 ## Where things live
 
 - Data caches (reports, market data, memories): `~/.tradingagents` — delete it

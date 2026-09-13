@@ -133,6 +133,14 @@ export function RunView({ jobId, onBack }: { jobId: string; onBack: () => void }
               )}
             </span>
           )}
+          {status && (
+            <span
+              className="rounded border border-terminal-accent/40 bg-terminal-accent/10 px-2 py-0.5 text-xs uppercase tracking-wider text-terminal-accent"
+              data-testid="depth-badge"
+            >
+              depth: {status.depth}
+            </span>
+          )}
           {status?.has_instructions && (
             <span className="rounded border border-sky-500/40 bg-sky-500/10 px-2 py-0.5 text-xs text-sky-300">
               custom instructions

@@ -233,10 +233,10 @@ def test_both_adapters_use_the_shared_resolver(
 
     sentinel = _baseline_config()
     sentinel["llm_provider"] = "sentinel-provider"
-    monkeypatch.setattr(direct_mod, "resolve_graph_config", lambda: sentinel)
-    monkeypatch.setattr(direct_mod, "resolve_selected_analysts", lambda: ("market",))
-    monkeypatch.setattr(plugins_mod, "resolve_graph_config", lambda: sentinel)
-    monkeypatch.setattr(plugins_mod, "resolve_selected_analysts", lambda: ("market",))
+    monkeypatch.setattr(direct_mod, "resolve_graph_config", lambda depth=None: sentinel)
+    monkeypatch.setattr(direct_mod, "resolve_selected_analysts", lambda depth=None: ("market",))
+    monkeypatch.setattr(plugins_mod, "resolve_graph_config", lambda depth=None: sentinel)
+    monkeypatch.setattr(plugins_mod, "resolve_selected_analysts", lambda depth=None: ("market",))
 
     DirectProvider().build_runner("NVDA", "2026-09-11")
     direct_graph = StubUpstreamGraph.last_instance

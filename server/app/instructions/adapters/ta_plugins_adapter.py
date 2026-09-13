@@ -35,6 +35,7 @@ class TAPluginsProvider:
         date: str,
         asset_type: str = "stock",
         instructions: str | None = None,
+        depth: str = "standard",
     ) -> GraphRunner:
         if not instructions:
             # Plain run: identical to the direct provider (shared resolution).
@@ -42,8 +43,8 @@ class TAPluginsProvider:
 
             return UpstreamRunner(
                 TradingAgentsGraph(
-                    selected_analysts=resolve_selected_analysts(),
-                    config=resolve_graph_config(),
+                    selected_analysts=resolve_selected_analysts(depth),
+                    config=resolve_graph_config(depth),
                 ),
                 ticker,
                 date,
@@ -60,8 +61,8 @@ class TAPluginsProvider:
 
         from tradingagents.graph.trading_graph import TradingAgentsGraph
 
-        config = resolve_graph_config()
-        analysts = resolve_selected_analysts()
+        config = resolve_graph_config(depth)
+        analysts = resolve_selected_analysts(depth)
         targets = sorted(set(ta_plugins.FACTORY_NAMES) - {"create_msg_delete"})
         plugin = ta_plugins.prompt_prefix_plugin(instructions, targets)
         with ta_plugins.plugin_scope([plugin]):

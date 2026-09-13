@@ -302,6 +302,7 @@ class RunRequest(BaseModel):
     date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
     asset_type: Literal["stock", "crypto", "polymarket"] = "stock"
     provider: Literal["direct", "ta_plugins"] = "direct"
+    depth: Literal["fast", "standard", "deep"] = "standard"
     instructions: str | None = Field(default=None, max_length=4000)
 
     @field_validator("instructions")
@@ -327,6 +328,7 @@ class JobStatusResponse(BaseModel):
     date: str
     asset_type: str
     provider: str
+    depth: str
     effective_provider: str | None = None
     has_instructions: bool
     status: str

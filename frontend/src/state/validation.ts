@@ -1,7 +1,7 @@
 // Client-side validation mirroring backend rules (server/app/api/app.py).
 // The backend re-validates and returns static 422s; this only improves UX.
 
-import type { AssetType, Provider, RunConfig } from '../api/types';
+import type { AssetType, Depth, Provider, RunConfig } from '../api/types';
 
 export const TICKER_PATTERN = /^[A-Za-z0-9.\-:^]{1,16}$/;
 export const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
@@ -12,6 +12,7 @@ export interface FormValues {
   date: string;
   asset_type: AssetType;
   provider: Provider;
+  depth: Depth;
   instructions: string;
 }
 
@@ -71,6 +72,7 @@ export function toRunConfig(values: FormValues): RunConfig {
     date: values.date,
     asset_type: values.asset_type,
     provider: values.provider,
+    depth: values.depth,
   };
   if (instructionsEnabled(values.provider) && values.instructions.trim().length > 0) {
     config.instructions = values.instructions.trim();

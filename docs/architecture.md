@@ -24,6 +24,9 @@ server/app/instructions/
 - Graph config resolution (LLM provider/models, `selected_analysts`) is shared
   by both adapters via `graph_config.py` — every run gets the same environment
   layering (GUI baseline < upstream `TRADINGAGENTS_*` < `TA_WEBGUI_*`)
+- Analysis depth (`fast`/`standard`/`deep`, ADR 0007) rides the same path:
+  on preset-mapped keys the precedence becomes depth preset > `TA_WEBGUI_*` >
+  `TRADINGAGENTS_*` > GUI baseline; unmapped keys keep the layering above
 - The run engine consumes a `GraphRunner` built by the selected `InstructionProvider`
 - If `ta_plugins` is missing/broken:
   - without custom instructions the factory falls back to `direct` (with a warning) — GUI still runs

@@ -79,3 +79,48 @@ describe("AnalyzeForm instructions", () => {
     });
   });
 });
+
+describe("AnalyzeForm depth presets", () => {
+  it("defaults to the 'standard' preset with its helper text", () => {
+    render(<AnalyzeForm onSubmit={vi.fn()} />);
+    expect(screen.getByTestId("depth-standard")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("depth-fast")).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByTestId("depth-deep")).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByTestId("depth-help")).toHaveTextContent(/default: one debate round/i);
+  });
+
+  it("switches presets and updates the helper text", async () => {
+    render(<AnalyzeForm onSubmit={vi.fn()} />);
+    await userEvent.click(screen.getByTestId("depth-fast"));
+    expect(screen.getByTestId("depth-fast")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("depth-standard")).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByTestId("depth-help")).toHaveTextContent(/quick scan/i);
+    await userEvent.click(screen.getByTestId("depth-deep"));
+    expect(screen.getByTestId("depth-help")).toHaveTextContent(/most thorough/i);
+  });
+
+  it("sends the chosen depth with the run request", async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    render(<AnalyzeForm onSubmit={onSubmit} />);
+    await fillValidForm();
+    await userEvent.click(screen.getByTestId("depth-fast"));
+
+    await userEvent.click(screen.getByTestId("submit-run"));
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({ ticker: "NVDA", depth: "fast" }),
+    );
+  });
+
+  it("sends the default depth 'standard' when untouched", async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    render(<AnalyzeForm onSubmit={onSubmit} />);
+    await fillValidForm();
+
+    await userEvent.click(screen.getByTestId("submit-run"));
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ depth: "standard" }));
+  });
+});

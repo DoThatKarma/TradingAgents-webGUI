@@ -58,6 +58,7 @@ logger = logging.getLogger(__name__)
 _TERMINAL_STATUSES = frozenset({"completed", "cancelled", "failed"})
 _VALID_PROVIDERS = frozenset({"direct", "ta_plugins"})
 _VALID_ASSET_TYPES = frozenset({"stock", "crypto", "polymarket"})
+_VALID_DEPTHS = frozenset({"fast", "standard", "deep"})
 
 
 def validate_instructions(instructions: Any) -> None:
@@ -190,11 +191,14 @@ class JobManager:
             raise ValueError("ticker and date must be non-empty")
         asset_type = config.get("asset_type", "stock")
         provider = config.get("provider", "direct")
+        depth = config.get("depth", "standard")
         instructions = config.get("instructions")
         if asset_type not in _VALID_ASSET_TYPES:
             raise ValueError(f"unknown asset_type {asset_type!r}")
         if provider not in _VALID_PROVIDERS:
             raise ValueError(f"unknown provider {provider!r}")
+        if depth not in _VALID_DEPTHS:
+            raise ValueError(f"unknown depth {depth!r}")
         if provider == "direct" and instructions:
             raise ValueError("instructions require provider 'ta_plugins'")
         validate_instructions(instructions)
@@ -208,6 +212,7 @@ class JobManager:
                 asset_type=asset_type,
                 instructions=instructions,
                 provider=provider,
+                depth=depth,
             ),
         )
         with self._registry_lock:
@@ -362,6 +367,7 @@ class JobManager:
             "date": job.spec.date,
             "asset_type": job.spec.asset_type,
             "provider": job.spec.provider,
+            "depth": job.spec.depth,
             "effective_provider": job.spec.effective_provider,
             "has_instructions": job.spec.instructions is not None,
             "status": job.status,

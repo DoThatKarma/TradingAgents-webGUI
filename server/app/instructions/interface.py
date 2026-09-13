@@ -55,6 +55,7 @@ class InstructionProvider(Protocol):
         date: str,
         asset_type: str = "stock",
         instructions: str | None = None,
+        depth: str = "standard",
     ) -> GraphRunner:
         """Construct a runner for one analysis run."""
         ...

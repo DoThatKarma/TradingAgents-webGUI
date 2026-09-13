@@ -1,7 +1,7 @@
 import { useMemo, useState, type FormEvent } from "react";
 import { ApiError } from "../api/client";
-import type { AssetType, Provider, RunConfig } from "../api/types";
-import { ASSET_TYPES, PROVIDERS } from "../api/types";
+import type { AssetType, Depth, Provider, RunConfig } from "../api/types";
+import { ASSET_TYPES, DEPTHS, PROVIDERS } from "../api/types";
 import {
   MAX_INSTRUCTIONS,
   formIsValid,
@@ -16,6 +16,11 @@ const LABEL = "block text-xs font-medium uppercase tracking-wider text-terminal-
 const INPUT =
   "w-full rounded border border-terminal-border bg-terminal-bg px-3 py-2 text-sm text-terminal-text " +
   "placeholder:text-slate-600 focus:border-terminal-accent focus:outline-none focus:ring-1 focus:ring-terminal-accent/40 disabled:opacity-40";
+const DEPTH_HELP: Record<Depth, string> = {
+  fast: "Quick scan: no debates, fast models, fewer sources.",
+  standard: "Default: one debate round, balanced cost and rigor.",
+  deep: "Most thorough: multi-round debates, all analysts.",
+};
 
 export function AnalyzeForm({
   onSubmit,
@@ -29,6 +34,7 @@ export function AnalyzeForm({
     date: new Date().toISOString().slice(0, 10),
     asset_type: "stock",
     provider: "direct",
+    depth: "standard",
     instructions: "",
   });
   const [touched, setTouched] = useState(false);
@@ -145,6 +151,35 @@ export function AnalyzeForm({
             ))}
           </select>
         </div>
+      </div>
+
+      <div className="mt-4">
+        <span className={LABEL}>Analysis depth</span>
+        <div className="grid grid-cols-3 gap-2" role="group" aria-label="Analysis depth">
+          {DEPTHS.map((d) => {
+            const active = values.depth === d;
+            return (
+              <button
+                key={d}
+                type="button"
+                data-testid={`depth-${d}`}
+                aria-pressed={active}
+                onClick={() => set("depth", d)}
+                className={`numeric rounded border px-3 py-2 text-xs font-semibold uppercase tracking-wider transition ${
+                  active
+                    ? "border-terminal-accent bg-terminal-accent/15 text-terminal-accent"
+                    : "border-terminal-border bg-terminal-bg text-terminal-muted hover:border-terminal-accent/50 hover:text-terminal-text"
+                } disabled:cursor-not-allowed disabled:opacity-40`}
+                disabled={submitting}
+              >
+                {d}
+              </button>
+            );
+          })}
+        </div>
+        <p className="mt-1.5 text-xs text-slate-500" data-testid="depth-help">
+          {DEPTH_HELP[values.depth]}
+        </p>
       </div>
 
       <div className="mt-4">

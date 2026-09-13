@@ -31,6 +31,7 @@ class DirectProvider:
         date: str,
         asset_type: str = "stock",
         instructions: str | None = None,
+        depth: str = "standard",
     ) -> GraphRunner:
         if instructions:
             raise ValueError(
@@ -40,6 +41,7 @@ class DirectProvider:
         from tradingagents.graph.trading_graph import TradingAgentsGraph
 
         graph = TradingAgentsGraph(
-            selected_analysts=resolve_selected_analysts(), config=resolve_graph_config()
+            selected_analysts=resolve_selected_analysts(depth),
+            config=resolve_graph_config(depth),
         )
         return UpstreamRunner(graph, ticker, date, asset_type)
