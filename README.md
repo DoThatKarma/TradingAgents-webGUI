@@ -165,3 +165,19 @@ gui.example.com {
 
 CORS stays disabled by default: the frontend is served same-origin behind the
 proxy, so no cross-origin configuration is needed.
+
+## License & credits
+
+TradingAgents-webGUI is free software: licensed under the **GNU Affero General Public License v3.0**
+(AGPL-3.0-only). You are free to use, study, modify and share it.
+
+- **Paid hosting is allowed** — you may charge for offering TradingAgents-webGUI as a hosted service.
+  The license governs the code, not your service fees. If you run a **modified** version on a server,
+  AGPL-3.0 §13 requires you to offer its source to your users.
+- **Credits required** — keep the copyright and license notices crediting both
+  **DoThatKarma / TradingAgents-webGUI** and **TauricResearch / TradingAgents**
+  (the upstream engine, Apache-2.0). See [NOTICE](NOTICE).
+- **Share modifications** — if you build substantially on this code and distribute it (or serve a
+  modified version), your work must be made available to others under the same AGPL-3.0 terms.
+
+Full license text: [LICENSE](LICENSE) · Attribution details: [NOTICE](NOTICE)

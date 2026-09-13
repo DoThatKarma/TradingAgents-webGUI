@@ -1,0 +1,35 @@
+TradingAgents-webGUI
+Copyright (C) 2026 DoThatKarma
+https://github.com/DoThatKarma/TradingAgents-webGUI
+
+This product includes software from the upstream TradingAgents project:
+
+  TradingAgents
+  Copyright TauricResearch
+  https://github.com/TauricResearch/TradingAgents
+  Licensed under the Apache License, Version 2.0
+
+This product as a whole (the TradingAgents-webGUI repository) is licensed under the
+GNU Affero General Public License, Version 3 (AGPL-3.0-only); see the LICENSE file.
+The upstream TradingAgents software and the plugin SDK remain licensed under the
+Apache License, Version 2.0; their license text and attribution must be preserved
+when their software or any part of it is redistributed.
+
+PRESERVATION OF CREDITS
+
+When you copy, modify or redistribute substantial parts of TradingAgents-webGUI, you must:
+
+1. Keep the copyright notice "Copyright (C) 2026 DoThatKarma" and the project name
+   "TradingAgents-webGUI" intact in the Appropriate Legal Notices of the work
+   (AGPL-3.0 Sections 4, 5(a) and 7(d); see also the license Appendix: keep the
+   copyright notices).
+2. Keep this NOTICE file readable and pass along the LICENSE file and all notices of
+   the absence of warranty (AGPL-3.0 Sections 4 and 5(b)-(d)).
+3. Not misrepresent the origin of the material (AGPL-3.0 Section 7(c)).
+4. If you run a modified version as a network server, prominently offer its
+   Corresponding Source to your users (AGPL-3.0 Section 13).
+5. Where the upstream TradingAgents software is redistributed, include a copy of the
+   Apache License, Version 2.0 and retain its attribution notices
+   (Apache-2.0 Sections 4(a), 4(c) and 4(d)).
+
+The contents of this NOTICE file are informational and do not modify the licenses.
