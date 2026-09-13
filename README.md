@@ -24,8 +24,8 @@ details (config, caches, optional token auth).
 ## Goals
 
 - Run TradingAgents analyses from the browser with **live per-agent progress**
-- **Custom instructions**: add your own guidance to any agent's prompt (the north-star feature)
-- Decoupled core: the GUI works standalone; the plugin layer (`ta_plugins`) is an optional adapter
+- **Custom instructions**: add your own guidance to any agent's prompt
+- Decoupled core: the GUI works standalone; the plugin layer (`ta_plugins`) is an optional adapter(Activated in the Graphical Interface)
 - Professional, contributor-friendly codebase: typed, tested, documented
 
 ## Status
