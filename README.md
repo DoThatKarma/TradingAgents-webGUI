@@ -115,6 +115,18 @@ export TA_WEBGUI_API_TOKEN=$(openssl rand -hex 32)
 uvicorn app.api.app:create_app --factory --host 127.0.0.1 --port 8000
 ```
 
+**Run persistence** (`TA_WEBGUI_PERSIST_DIR`): when this environment variable
+is set to a directory, every finished run (completed / failed / cancelled) is
+written atomically to ``<dir>/jobs/<job_id>.json`` (spec metadata, status,
+short error category, full event log, timestamps — analysis content only,
+never API keys or tracebacks) and restored read-only at startup, so run
+history and report downloads survive restarts. Finished runs are exempt from
+the one-hour in-memory eviction; corrupt files are skipped with a warning;
+explicit deletion removes the file too. Unset or empty keeps the previous
+purely in-memory behavior. The shipped `run.sh` / `run.bat` default it to
+`data/runs` (gitignored); see
+[ADR 0008](docs/decisions/0008-report-persistence.md).
+
 **Security headers** (`X-Content-Type-Options: nosniff`, `X-Frame-Options:
 DENY`, `Referrer-Policy: no-referrer`, `Cache-Control: no-store`) are sent by
 the app on `/api/*` responses only. The static frontend is served by the

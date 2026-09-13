@@ -27,7 +27,12 @@ fi
 # 3. Environment: static SPA hosting for the bundled webui (single process).
 export TA_WEBGUI_STATIC_DIR="$SCRIPT_DIR/webui"
 
-# 4. Start the API + SPA server from the server/ directory.
+# 4. Durable run persistence (ADR 0008): finished runs survive restarts.
+#    Override by exporting TA_WEBGUI_PERSIST_DIR before launching.
+export TA_WEBGUI_PERSIST_DIR="${TA_WEBGUI_PERSIST_DIR:-$SCRIPT_DIR/data/runs}"
+mkdir -p "$TA_WEBGUI_PERSIST_DIR"
+
+# 5. Start the API + SPA server from the server/ directory.
 cd "$SERVER_DIR"
 exec "$VENV_DIR/bin/python" -m uvicorn app.api.app:create_app --factory \
     --host 127.0.0.1 --port 8000
