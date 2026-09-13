@@ -3,6 +3,8 @@
 A professional web interface for [TradingAgents](https://github.com/TauricResearch/TradingAgents)
 — the multi-agent hedge-fund research framework — served in the browser.
 
+![TradingAgents-webGUI — live analysis view](docs/images/gui-run-overview.png)
+
 > ⚠️ Under active development. Architecture and status: [`docs/architecture.md`](docs/architecture.md)
 > If u want to contribute, we would love someone to help maintaining it all! Please reach out to me, BTC donations are also welcome(See BIO: https://github.com/DoThatKarma and make sure to let me know u want it to be spendt on this repo!  Thank you!
 
@@ -25,7 +27,7 @@ details (config, caches, optional token auth).
 ## Goals
 
 - Run TradingAgents analyses from the browser with **live per-agent progress**
-- **Custom instructions**: add your own guidance to any agent's prompt
+- **Custom instructions**: add your own guidance to any agent's prompt — e.g. for AMBEA, the agents delivered an entire elder-care demand thesis: ![Custom instructions in action](docs/images/custom-context-example.png)
 - Decoupled core: the GUI works standalone; the plugin layer (`ta_plugins`) is an optional adapter(Activated in the Graphical Interface)
 - Professional, contributor-friendly codebase: typed, tested, documented
 
