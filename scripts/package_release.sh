@@ -54,6 +54,26 @@ if [[ ! "$PIN_SHA" =~ ^[0-9a-f]{40}$ ]]; then
     exit 1
 fi
 
+# ------------------------------------------------------- pin reachability
+# A pin GitHub cannot serve breaks user installs at pip's
+# `git fetch <url> <sha>` step (exit 128). Regression v0.1.4: the local fork
+# HEAD was pinned while unpushed. Replicate pip's exact fetch before baking
+# the sha into requirements.lock.
+FORK_URL="https://github.com/DoThatKarma/TradingAgentsPlugin.git"
+PIN_VERIFY_DIR="$(mktemp -d)"
+echo "==> Verifying pin ${PIN_SHA:0:12} is fetchable from ${FORK_URL} ..."
+if git -C "$PIN_VERIFY_DIR" init -q \
+    && git -C "$PIN_VERIFY_DIR" fetch -q --depth=1 "$FORK_URL" "$PIN_SHA" >/dev/null 2>&1; then
+    echo "    OK: pin fetchable from remote."
+else
+    echo "error: pinned sha $PIN_SHA is NOT fetchable from ${FORK_URL}." 1>&2
+    echo "       Push the fork first (git -C <fork-checkout> push origin main)," 1>&2
+    echo "       or override with TRADINGAGENTS_PIN_SHA=<already-pushed-sha>." 1>&2
+    rm -rf "$PIN_VERIFY_DIR"
+    exit 1
+fi
+rm -rf "$PIN_VERIFY_DIR"
+
 # ------------------------------------------------------------------- version
 VERSION="$(sed -n 's/^version = "\([^"]*\)"$/\1/p' server/pyproject.toml | head -n1)"
 if [ -z "$VERSION" ]; then
