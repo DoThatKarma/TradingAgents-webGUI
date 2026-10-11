@@ -1,0 +1,171 @@
+# ----------------------------------------------------------------------------
+# TradingAgents-webGUI — VPS stack (ADR 0010)
+#
+# Topology (nothing is published to the host; all ingress is outbound-only):
+#
+#   Cloudflare edge --(outbound tunnel)-- cloudflared --> traefik:80 --> server
+#
+#   * cloudflared : Cloudflare Tunnel connector (token mode). No ports.
+#   * traefik     : v3 edge proxy. Entrypoint "web" on :80 exists ONLY on the
+#                   internal docker network — never published via `ports:`.
+#                   Routing lives in docker labels on the server service, so
+#                   cloudflared always points at one static URL: http://traefik:80
+#   * server      : FastAPI + SPA (deploy/Dockerfile). Single replica!
+#
+# Usage:
+#   cp .env.example .env   # then edit (TUNNEL_TOKEN, DOMAIN, tokens, limits)
+#   docker compose up -d --build   # local build
+#   # ...or pull the CI-built image instead of building:
+#   # docker compose pull server && docker compose up -d
+#
+# Env values are read from .env next to this file (compose project directory).
+# ----------------------------------------------------------------------------
+
+name: ta-webgui
+
+networks:
+  edge:
+    # Explicit network name: deterministic across project renames, referenced
+    # by the traefik --providers.docker.network flag below.
+    name: ta-webgui-edge
+    # NOT internal: the server needs outbound internet (market data + LLM APIs)
+    # and cloudflared needs outbound to Cloudflare edge. Isolation comes from
+    # publishing NO ports, not from a dead-end network.
+
+volumes:
+  server_data:
+
+services:
+  cloudflared:
+    image: cloudflare/cloudflared:latest  # consider pinning a digest for prod
+    restart: unless-stopped
+    # Token mode (recommended): public hostnames + ingress are configured in
+    # the Cloudflare Zero Trust dashboard, NOT in files on the VPS. The tunnel
+    # service URL should be http://traefik:80 (see docs/deploy-vps.md).
+    # credentials-file mode is available as an alternative: deploy/cloudflared/
+    command: tunnel --no-autoupdate run --token ${TUNNEL_TOKEN}
+    networks:
+      - edge
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      - traefik
+
+  traefik:
+    image: traefik:v3.3
+    restart: unless-stopped
+    command:
+      # Single plaintext entrypoint: TLS terminates at the Cloudflare edge and
+      # the tunnel link itself is encrypted, so traefik:80 inside the private
+      # network is the correct simplest topology (ADR 0010).
+      - --entrypoints.web.address=:80
+      # Trust X-Forwarded-* on "web" so rate limiting keys on the REAL client
+      # IP relayed by cloudflared/Cloudflare. Safe ONLY because this entrypoint
+      # is not published to the host — the sole client able to connect is
+      # cloudflared on the ta-webgui-edge network.
+      - --entrypoints.web.forwardedheaders.insecure=true
+      # Docker provider: containers opt in via the traefik.enable=true label.
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --providers.docker.network=ta-webgui-edge
+      - --log.level=INFO
+      - --accesslog=true
+      # NOTE: the api/dashboard is intentionally NOT enabled in this stack.
+    networks:
+      - edge
+    security_opt:
+      - no-new-privileges:true
+    # Deliberately NO ports: section — the entrypoint must never leave the
+    # docker network. See "why no open ports" in docs/deploy-vps.md.
+
+  server:
+    # Build locally from source ...
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    # ... and tag it exactly like the CI-built GHCR image, so
+    # `docker compose pull server` upgrades in place (see docs/deploy-vps.md).
+    image: ghcr.io/dohatkarma/tradingagents-webgui-server:latest
+    restart: unless-stopped
+    # Single-process server (in-process job pool + SSE subscribers):
+    # run EXACTLY ONE replica — never scale this service horizontally.
+    environment:
+      # App-level bearer gate on /api/* (GET /api/health stays open).
+      TA_WEBGUI_API_TOKEN: ${TA_WEBGUI_API_TOKEN}
+      # Persist run reports inside the named volume.
+      TA_WEBGUI_PERSIST_DIR: /data
+      # Optional: extra server settings via a separate env file.
+      # env_file:
+      #   - ./server.env
+    volumes:
+      - server_data:/data
+    networks:
+      - edge
+    security_opt:
+      - no-new-privileges:true
+    labels:
+      - traefik.enable=true
+      # ------------------------------------------------------------------
+      # Router: SPA (static assets + client-side routes, catch-all)
+      # ------------------------------------------------------------------
+      - traefik.http.routers.webgui-spa.rule=Host(`${DOMAIN}`)
+      - traefik.http.routers.webgui-spa.entrypoints=web
+      - traefik.http.routers.webgui-spa.service=webgui-svc
+      - traefik.http.routers.webgui-spa.middlewares=webgui-headers,webgui-compress
+      # ------------------------------------------------------------------
+      # Router: API (wins over the catch-all by rule length: Host && PathPrefix)
+      # NO compress middleware here — GET /api/runs/{id}/events is a long-lived
+      # Server-Sent-Events stream that must never be compressed/buffered.
+      # ------------------------------------------------------------------
+      - traefik.http.routers.webgui-api.rule=Host(`${DOMAIN}`) && PathPrefix(`/api`)
+      - traefik.http.routers.webgui-api.entrypoints=web
+      - traefik.http.routers.webgui-api.service=webgui-svc
+      - traefik.http.routers.webgui-api.middlewares=webgui-headers,webgui-ratelimit,webgui-inflight
+      # ------------------------------------------------------------------
+      # Service: uvicorn inside the server container (EXPOSE 8000)
+      # ------------------------------------------------------------------
+      - traefik.http.services.webgui-svc.loadbalancer.server.port=8000
+      # ------------------------------------------------------------------
+      # Middleware: rate limit on /api (token bucket per client IP).
+      # Values come from .env; unset values fail fast at traefik startup.
+      # ------------------------------------------------------------------
+      - traefik.http.middlewares.webgui-ratelimit.ratelimit.average=${RATE_LIMIT_AVERAGE}
+      - traefik.http.middlewares.webgui-ratelimit.ratelimit.burst=${RATE_LIMIT_BURST}
+      # ------------------------------------------------------------------
+      # Middleware: global cap on simultaneous in-flight requests on /api
+      # (also bounds concurrent SSE streams). v3 field name: amount
+      # (the older v2-era alias for this field is deprecated — do not use it).
+      # ------------------------------------------------------------------
+      - traefik.http.middlewares.webgui-inflight.inflightreq.amount=${INFLIGHT_LIMIT}
+      # ------------------------------------------------------------------
+      # Middleware: security headers on EVERYTHING. The app already sets
+      # nosniff / frame-deny / referrer / no-store; the edge adds HSTS, which
+      # only makes sense here (TLS terminates at Cloudflare, not in the app).
+      # ------------------------------------------------------------------
+      - traefik.http.middlewares.webgui-headers.headers.stsseconds=31536000
+      - traefik.http.middlewares.webgui-headers.headers.stsincludesubdomains=true
+      - traefik.http.middlewares.webgui-headers.headers.stspreload=true
+      - traefik.http.middlewares.webgui-headers.headers.forcestsheader=true
+      - traefik.http.middlewares.webgui-headers.headers.contenttypenosniff=true
+      - traefik.http.middlewares.webgui-headers.headers.framedeny=true
+      - traefik.http.middlewares.webgui-headers.headers.referrerpolicy=no-referrer
+      # ------------------------------------------------------------------
+      # Middleware: compression — SPA router ONLY, with text/event-stream
+      # explicitly excluded as belt-and-braces for future router changes.
+      # ------------------------------------------------------------------
+      - traefik.http.middlewares.webgui-compress.compress.excludedcontenttypes=text/event-stream
+      # ------------------------------------------------------------------
+      # OPTIONAL extra layer: Traefik basicAuth in front of the SPA only
+      # (a username/password wall for shared/demo instances). The app-level
+      # bearer token on /api stays authoritative — do not duplicate auth,
+      # complement it. Keeping it OFF the /api router preserves proxy health
+      # checks against /api/health and keeps the app's bearer flow intact.
+      #
+      # 1) Generate (bcrypt):
+      #      htpasswd -nB admin
+      # 2) Escape every literal $ as $$ (compose interpolation):
+      #      admin:$$2y$$05$$...
+      # 3) Uncomment and append ,webgui-basicauth to webgui-spa.middlewares:
+      # - traefik.http.middlewares.webgui-basicauth.basicauth.users=admin:$$2y$$05$$REPLACE-ME
+      # - traefik.http.middlewares.webgui-basicauth.basicauth.removeheader=true
+      # ------------------------------------------------------------------

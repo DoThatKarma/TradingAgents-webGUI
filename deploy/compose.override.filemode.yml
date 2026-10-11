@@ -1,0 +1,24 @@
+# ----------------------------------------------------------------------------
+# TradingAgents-webGUI — compose override for cloudflared FILE mode
+#
+# Optional. Use ONLY if you run a file-managed tunnel instead of the default
+# token mode (see deploy/cloudflared/README.md).
+#
+# Requires in deploy/.env:
+#   CLOUDFLARED_CREDENTIALS_FILE=/absolute/path/to/<tunnel-UUID>.json
+#
+# Usage (from deploy/):
+#   docker compose -f docker-compose.yml -f compose.override.filemode.yml up -d
+# ----------------------------------------------------------------------------
+
+services:
+  cloudflared:
+    command:
+      - tunnel
+      - --no-autoupdate
+      - --config=/etc/cloudflared/config.yml
+      - run
+      - ta-webgui
+    volumes:
+      - ./cloudflared/config.yml:/etc/cloudflared/config.yml:ro
+      - ${CLOUDFLARED_CREDENTIALS_FILE}:/etc/cloudflared/credentials.json:ro

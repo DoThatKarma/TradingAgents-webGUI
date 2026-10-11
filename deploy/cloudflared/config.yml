@@ -1,0 +1,51 @@
+# ----------------------------------------------------------------------------
+# TradingAgents-webGUI — cloudflared ingress (ALTERNATIVE credentials-file mode)
+#
+# The DEFAULT stack (deploy/docker-compose.yml) uses TOKEN mode: the tunnel and
+# its public hostnames are configured in the Cloudflare Zero Trust dashboard and
+# the connector only receives `--token ${TUNNEL_TOKEN}`. No file on the VPS
+# carries routing state. That is the recommended mode (fewest moving parts,
+# ingress editable from the dashboard, token revocable without files).
+#
+# This file exists for teams who prefer file-managed tunnels (GitOps-style).
+# In file mode you must:
+#   1. create the tunnel and credentials on the VPS (or transfer them):
+#        cloudflared tunnel login
+#        cloudflared tunnel create ta-webgui   # writes <UUID>.json
+#   2. mount the credentials file and this config.yml into the container
+#   3. override the compose command for the cloudflared service:
+#        command: tunnel --no-autoupdate
+#                   --config /etc/cloudflared/config.yml run ta-webgui
+#   (a compose override snippet is in deploy/cloudflared/README.md)
+#
+# Routing note: in BOTH modes, path routing is intentionally NOT done here.
+# cloudflared forwards the public hostname as the Host header to ONE static
+# service URL — http://traefik:80 — and Traefik's docker-provider labels on the
+# server service (deploy/docker-compose.yml) own the Host/Path rules and the
+# middleware chain. One routing truth, at the edge of the app, changeable via
+# `docker compose up -d` without touching Cloudflare.
+# ----------------------------------------------------------------------------
+
+# UUID of the tunnel (from `cloudflared tunnel create ta-webgui` output).
+tunnel: 00000000-0000-0000-0000-000000000000
+
+# Path INSIDE the container where the <UUID>.json credentials file is mounted.
+credentials-file: /etc/cloudflared/credentials.json
+
+# Optional local-only metrics endpoint (container-internal, never published).
+# metrics: 127.0.0.1:2000
+
+ingress:
+  # The single app route: everything for the public hostname goes to Traefik.
+  - hostname: gui.example.com
+    service: http://traefik:80
+    originRequest:
+      connectTimeout: 10s
+      # By default cloudflared sends the public hostname as the HTTP Host
+      # header upstream — exactly what the Traefik router rule
+      # Host(`${DOMAIN}`) matches. Uncomment to pin it explicitly
+      # if your cloudflared version or proxying needs differ:
+      # httpHostHeader: gui.example.com
+
+  # Catch-all is REQUIRED when any hostname rules exist. Keep it last.
+  - service: http_status:404

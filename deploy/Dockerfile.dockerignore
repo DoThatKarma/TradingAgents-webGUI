@@ -1,0 +1,40 @@
+# deploy/Dockerfile.dockerignore — build-context whitelist for deploy/Dockerfile.
+# BuildKit pattern: when a file named <Dockerfile-name>.dockerignore exists next
+# to the Dockerfile, it REPLACES the root .dockerignore for this build.
+# Context is the repository root (see compose: context: ..).
+
+# Exclude everything by default ...
+**
+
+# ... then whitelist exactly what the build copies:
+
+# Stage 2: server package (pip install /srv/server → package 'app',
+# packages.find include=["app*"])
+server/pyproject.toml
+server/README.md
+server/app/**
+
+# Stage 1: SPA build inputs (package files first for layer caching;
+# the build runs npm ci + npm run build inside the image, so frontend/dist
+# is NOT needed in the context — it is git-ignored anyway)
+frontend/package.json
+frontend/package-lock.json
+frontend/index.html
+frontend/vite.config.ts
+frontend/tsconfig.json
+frontend/tsconfig.app.json
+frontend/tsconfig.node.json
+frontend/src/**
+
+# Health probe used by the image HEALTHCHECK
+deploy/healthcheck.py
+
+# Never allow secrets or junk into the build context (defense in depth —
+# whitelist already keeps them out, these are explicit safety nets):
+**/.env
+**/.env.*
+**/node_modules
+**/__pycache__
+**/.pytest_cache
+**/.ruff_cache
+**/.git
