@@ -6,31 +6,37 @@
 # Exclude everything by default ...
 **
 
-# ... then whitelist exactly what the build copies:
+# ... then re-include. IMPORTANT: parent directories must be re-included BEFORE
+# their children — dockerignore cannot re-include a file whose parent directory
+# is excluded, so "!dir/**" alone is not enough (this broke the first build).
 
-# Stage 2: server package (pip install /srv/server → package 'app',
-# packages.find include=["app*"])
-server/pyproject.toml
-server/README.md
-server/app/**
+# Stage 2: server package (pip install /srv/server → package 'app')
+!server
+!server/pyproject.toml
+!server/README.md
+!server/app
+!server/app/**
 
 # Stage 1: SPA build inputs (package files first for layer caching;
 # the build runs npm ci + npm run build inside the image, so frontend/dist
 # is NOT needed in the context — it is git-ignored anyway)
-frontend/package.json
-frontend/package-lock.json
-frontend/index.html
-frontend/vite.config.ts
-frontend/tsconfig.json
-frontend/tsconfig.app.json
-frontend/tsconfig.node.json
-frontend/src/**
+!frontend
+!frontend/package.json
+!frontend/package-lock.json
+!frontend/index.html
+!frontend/vite.config.ts
+!frontend/tsconfig.json
+!frontend/tsconfig.app.json
+!frontend/tsconfig.node.json
+!frontend/src
+!frontend/src/**
 
 # Health probe used by the image HEALTHCHECK
-deploy/healthcheck.py
+!deploy
+!deploy/healthcheck.py
 
-# Never allow secrets or junk into the build context (defense in depth —
-# whitelist already keeps them out, these are explicit safety nets):
+# Never allow secrets or junk into the build context (last rules win —
+# explicit safety nets even though the whitelist keeps most out):
 **/.env
 **/.env.*
 **/node_modules
