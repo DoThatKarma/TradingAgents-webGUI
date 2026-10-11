@@ -1,3 +1,4 @@
+[![CI](https://github.com/DoThatKarma/TradingAgents-webGUI/actions/workflows/ci.yml/badge.svg)](https://github.com/DoThatKarma/TradingAgents-webGUI/actions/workflows/ci.yml)
 # TradingAgents-webGUI
 
 A professional web interface for [TradingAgents](https://github.com/TauricResearch/TradingAgents)
