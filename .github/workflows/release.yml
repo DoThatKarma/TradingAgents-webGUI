@@ -1,0 +1,80 @@
+name: Release
+
+# Tag-driven user releases: pushing a tag 'v*' builds the downloadable zip,
+# records the exact upstream fork commit it was built against, and publishes
+# the artifacts on a GitHub release.
+#
+# NOTE (user gate): the 'release' environment must be configured in repo
+# settings (Settings -> Environments -> release) with required reviewers,
+# and may be restricted to 'v*' deployment tags. That gate lives in the UI,
+# not in this file.
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  publish:
+    name: Build and publish release
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout (full history)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # package_release.sh builds the frontend (Vite 7 needs Node 22).
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      # The packaging script only needs the Python standard library (zipfile);
+      # bash, git, node and npm are preinstalled on the runner.
+      - name: Minimal pip setup
+        run: python -m pip install --upgrade pip
+
+      - name: Resolve upstream fork pin (TRADINGAGENTS_PIN_SHA)
+        run: |
+          set -euo pipefail
+          PIN_SHA="$(git ls-remote https://github.com/DoThatKarma/TradingAgentsPlugin.git refs/heads/main | awk '{print $1}')"
+          echo "Resolved fork main HEAD: $PIN_SHA"
+          echo "PIN_SHA=$PIN_SHA" >> "$GITHUB_ENV"
+
+      - name: Build user release package
+        run: |
+          set -euo pipefail
+          export TRADINGAGENTS_PIN_SHA="${PIN_SHA}"
+          bash scripts/package_release.sh
+
+      - name: Checksum and artifact paths
+        run: |
+          set -euo pipefail
+          VERSION="$(sed -n 's/^version = "\([^"]*\)"$/\1/p' server/pyproject.toml | head -n1)"
+          test -n "$VERSION"
+          ZIP_PATH="dist-release/tradingagents-webgui-${VERSION}.zip"
+          test -f "$ZIP_PATH"
+          (cd dist-release && sha256sum "tradingagents-webgui-${VERSION}.zip" > sha256.txt)
+          echo "ZIP_PATH=$ZIP_PATH" >> "$GITHUB_ENV"
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ${{ env.ZIP_PATH }}
+            dist-release/sha256.txt
+          fail_on_unmatched_files: true
+          generate_release_notes: true
+          body: |
+            Built against TauricResearch fork pin `${{ env.PIN_SHA }}` (DoThatKarma/TradingAgentsPlugin).

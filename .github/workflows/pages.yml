@@ -1,0 +1,64 @@
+name: Pages
+
+# Deploys the built SPA to GitHub Pages. Triggers on frontend or docs changes
+# on main, or manually via workflow_dispatch.
+#
+# NOTE (user gate): Pages must be enabled once in repo settings
+# (Settings -> Pages -> Source: GitHub Actions). That toggle lives in the UI,
+# not in this file.
+
+# Fase 1 note: triggered only via workflow_dispatch until Pages is enabled in
+# repo settings and the SPA can talk to a backend (CORS / bring-your-own-
+# backend, fase 2). ADR 0009 documents the phases.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build SPA
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: frontend
+
+      - name: Build (with SPA 404 fallback)
+        run: |
+          npm run build
+          # SPA fallback: unknown routes serve the app so client-side routing works.
+          cp dist/index.html dist/404.html
+        working-directory: frontend
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: frontend/dist
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4
